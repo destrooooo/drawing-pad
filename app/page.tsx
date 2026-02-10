@@ -1,14 +1,15 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import * as Slider from "@radix-ui/react-slider";
+import { Undo2, Download } from "lucide-react";
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [color, setColor] = useState("#000000");
-  const [lineWidth, setLineWidth] = useState(5);
+  const [lineWidth, setLineWidth] = useState(8);
   const currentStrokeRef = useRef<{ x: number; y: number }[]>([]);
+  const [undoAnimating, setUndoAnimating] = useState(false);
   const strokesHistoryRef = useRef<
     Array<{
       points: { x: number; y: number }[];
@@ -31,7 +32,10 @@ export default function Home() {
 
     if (!context) return;
 
-    context.lineWidth = 5;
+    context.fillStyle = "white";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    context.lineWidth = 8;
     context.scale(2, 2);
     context.lineCap = "round";
     context.lineJoin = "round";
@@ -62,25 +66,29 @@ export default function Home() {
     contextRef.current.lineTo(offsetX, offsetY);
     contextRef.current.stroke();
     currentStrokeRef.current.push({ x: offsetX, y: offsetY });
-    console.log(currentStrokeRef);
   };
 
   const finishDrawing = () => {
     if (!contextRef.current) return;
     setIsDrawing(false);
     contextRef.current.closePath();
-    const stroke = {
-      points: currentStrokeRef.current,
-      color: color,
-      lineWidth: lineWidth,
-    };
-    strokesHistoryRef.current.push(stroke);
+    if (isDrawing && currentStrokeRef.current.length > 1) {
+      const stroke = {
+        points: currentStrokeRef.current,
+        color: color,
+        lineWidth: lineWidth,
+      };
+      strokesHistoryRef.current.push(stroke);
+    }
   };
 
   const undo = () => {
     if (!contextRef.current || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const context = contextRef.current;
+
+    setUndoAnimating(true);
+    setTimeout(() => setUndoAnimating(false), 150);
 
     strokesHistoryRef.current.pop();
 
@@ -89,11 +97,8 @@ export default function Home() {
     contextRef.current.strokeStyle = color ?? "black";
 
     strokesHistoryRef.current.forEach((stroke) => {
-      // Pour chaque trait, vous devez :
       context.strokeStyle = stroke.color;
       context.lineWidth = stroke.lineWidth;
-      // a) Configurer la couleur et largeur de CE trait
-      // b) Tracer tous les points de CE trait
       context.beginPath();
 
       const firstPoint = stroke.points[0];
@@ -108,76 +113,129 @@ export default function Home() {
     });
   };
 
+  const save = () => {
+    if (!contextRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const image = canvas.toDataURL("image/png");
+    console.log(image);
+
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    }, "image/png");
+  };
   return (
     <>
-      <div className=" flex flex-row gap-1 rounded-4xl p-4 w-fit h-fit bg-amber-400 absolute bottom-6 left-1/2 -translate-x-1/2">
-        <button
-          data-color="#000000"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-black ${color === "#000000" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          data-color="#f6339a"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-pink-500 ${color === "#f6339a" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          data-color="#efb100"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-yellow-500 ${color === "#efb100" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          data-color="#00c951"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-green-500 ${color === "#00c951" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          data-color="#2b7fff"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-blue-500 ${color === "#2b7fff" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          data-color="#ad46ff"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-purple-500 ${color === "#ad46ff" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          data-color="#fb2c36"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-red-500 ${color === "#fb2c36" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          data-color="#ff6900"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-orange-500 ${color === "#ff6900" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          data-color="#737373"
-          className={`w-6 h-6 rounded-4xl grow-0 bg-neutral-500 ${color === "#737373" ? "ring-2 ring-white" : ""}`}
-          onClick={(e) => setColor(e.currentTarget.dataset.color!)}
-        ></button>
-        <button
-          className="w-6 h-6 rounded-4xl grow-0 bg-neutral-50"
-          onClick={(e) => undo()}
-        ></button>
-        <Slider.Root
-          value={[lineWidth]}
-          onValueChange={(value) => setLineWidth(value[0])}
-          min={1}
-          max={50}
-          step={5}
-          className="relative flex items-center  grow-0 w-auto h-5"
-        >
-          <Slider.Track className="bg-gray-200 relative w-40 rounded-full h-1">
-            <Slider.Range className="absolute bg-black rounded-full h-full" />
-          </Slider.Track>
-          <Slider.Thumb className="block w-4 h-4 bg-white border-2 border-black rounded-full" />
-        </Slider.Root>
+      <div className=" flex flex-row gap-4 rounded-4xl p-4 w-fit h-fit bg-neutral-100 absolute bottom-6 left-1/2 -translate-x-1/2">
+        <span className="flex gap-1.5">
+          <button
+            className={`w-7 h-7 rounded-4xl grow-0 bg-neutral-500 flex items-center justify-center 
+              ${undoAnimating ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={() => undo()}
+          >
+            <Undo2 color="white" size={16} />
+          </button>
+        </span>
+        <span className="flex gap-1.5">
+          <button
+            data-color="#000000"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-black ${color === "#000000" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+          <button
+            data-color="#f6339a"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-pink-500 ${color === "#f6339a" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+          <button
+            data-color="#efb100"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-yellow-500 ${color === "#efb100" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+          <button
+            data-color="#00c951"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-green-500 ${color === "#00c951" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+          <button
+            data-color="#2b7fff"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-blue-500 ${color === "#2b7fff" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+          <button
+            data-color="#ad46ff"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-purple-500 ${color === "#ad46ff" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+          <button
+            data-color="#fb2c36"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-red-500 ${color === "#fb2c36" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+          <button
+            data-color="#ff6900"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-orange-500 ${color === "#ff6900" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+          <button
+            data-color="#737373"
+            className={`w-7 h-7 rounded-4xl grow-0 bg-neutral-500 ${color === "#737373" ? "ring-2 ring-neutral-400" : ""}`}
+            onClick={(e) => setColor(e.currentTarget.dataset.color!)}
+          ></button>
+        </span>
+        <span className="flex gap-1.5">
+          <button
+            data-linewidth="8"
+            className={`w-7 h-7 rounded-4xl flex items-center justify-center grow-0 border-2 bg-none ${lineWidth === 8 ? "ring-2 ring-neutral-400" : "opacity-30"}`}
+            onClick={(e) =>
+              setLineWidth(Number(e.currentTarget.dataset.linewidth!))
+            }
+          >
+            <div className="w-2 h-2 bg-black rounded-2xl"></div>
+          </button>
+          <button
+            data-linewidth="12"
+            className={`w-7 h-7 rounded-4xl flex items-center justify-center grow-0 border-2 bg-none ${lineWidth === 12 ? "ring-2 ring-neutral-400" : "opacity-30"}`}
+            onClick={(e) =>
+              setLineWidth(Number(e.currentTarget.dataset.linewidth!))
+            }
+          >
+            <div className="w-3 h-3 bg-black rounded-2xl"></div>
+          </button>
+          <button
+            data-linewidth="16"
+            className={`w-7 h-7 rounded-4xl flex items-center justify-center grow-0 border-2 bg-none ${lineWidth === 16 ? "ring-2 ring-neutral-400" : "opacity-30"}`}
+            onClick={(e) =>
+              setLineWidth(Number(e.currentTarget.dataset.linewidth!))
+            }
+          >
+            <div className="w-4 h-4 bg-black rounded-2xl"></div>
+          </button>
+          <button
+            data-linewidth="20"
+            className={`w-7 h-7 rounded-4xl flex items-center justify-center grow-0 border-2 bg-none ${lineWidth === 20 ? "ring-2 ring-neutral-400" : "opacity-30"}`}
+            onClick={(e) =>
+              setLineWidth(Number(e.currentTarget.dataset.linewidth!))
+            }
+          >
+            <div className="w-5 h-5 bg-black rounded-2xl"></div>
+          </button>
+        </span>
+        <span className="flex gap-1.5">
+          <button
+            className={`w-7 h-7 rounded-4xl grow-0 bg-neutral-500 flex items-center justify-center `}
+            onClick={() => save()}
+          >
+            <Download color="white" size={16} />
+          </button>
+        </span>
       </div>
       <canvas
         onMouseDown={startDrawing}
         onMouseUp={finishDrawing}
         onMouseMove={draw}
+        onMouseLeave={finishDrawing}
         ref={canvasRef}
       />
     </>
